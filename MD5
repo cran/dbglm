@@ -1,0 +1,15 @@
+68db3c0185b33bb881bd02ad0b0f3b91 *DESCRIPTION
+91c15bea9e9b79663800d226a159d89b *LICENSE
+4331d5fb96e284d468f1492f0cc02ea9 *NAMESPACE
+5b72069b26a4b320e0ae960cd558bca0 *R/dbglm.R
+387a14037019cdbe950defbc8adb60b8 *R/fleet1.R
+ea18143fa251628c5c862a7adc274849 *README.md
+c861059eacc2abeb011598322fb5f0ff *data/fleet1.RData
+6b3648ae817c4903beb9bf1dfe2a4cdb *inst/Recreating_Table_1.Rmd
+7d42f9d950ff07ce927586dc5e0ae7d4 *inst/dbglm-poisson.R
+8241ed990e2a87080af4640491f0bdfa *inst/nzcars.R
+8a4906c0a87ea387ea4b308a6d7aed3a *inst/taxis.R
+bf18edf67db463ad17d6778f408561b0 *man/dbglm.Rd
+56e556c7f370f430a30626640d12d823 *man/fleet1.Rd
+d1bb018f97ed185b9f8cba582e21ff45 *tests/testthat.R
+7cf5cdf435378d1a8171476ad3bce4c7 *tests/testthat/test-dbglm.R

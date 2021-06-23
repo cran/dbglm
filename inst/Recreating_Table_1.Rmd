@@ -1,0 +1,246 @@
+---
+title: "Recreating Table 1"
+output: pdf_document
+---
+
+```{r}
+library(dbglm)
+library(DBI)
+library(MonetDBLite)
+library(dplyr)
+library(dbplyr)
+library(purrr)
+library(tidyr) # Eventually just library(tidyverse)
+library(rlang)
+library(tibble)
+library(vctrs)
+library(tidypredict)
+library(RSQLite)
+library(knitr)
+library(duckdb)
+library(readr)
+library(bigrquery)
+library(stringr)
+```
+
+```{r}
+ms <- MonetDBLite::src_monetdblite("~/VEHICLE")
+monetdb.read.csv(ms$con, "Fleet30Nov2017a.csv",tablename="vehicles",quote="",nrow.check=10000,best.effort=TRUE,lower.case.names=TRUE)
+vehicles<-tbl(ms,"vehicles")
+cars <- filter(vehicles, vehicle_type == "PASSENGER CAR/VAN") %>% 
+	mutate(isred=ifelse(basic_colour=="RED",1,0)) %>% 
+	filter(number_of_seats >1 & number_of_seats < 7) %>% filter(number_of_axles==2) %>%
+	compute()
+```
+
+```{r}
+# Full data
+t1<- system.time({
+  m1<-glm(isred~power_rating+number_of_seats+gross_vehicle_mass, data=cars, family = "binomial")
+})
+t1<- unname(t1[3])
+row.1<- c(unname(m1$coefficients), t1)
+m1<- summary(m1)
+row.2<- unname(m1$coefficients[,2])
+
+# Replicate 1 - monet
+a1<- numeric(0)
+aa<- rep(0, 4)
+bb<- rep(0, 4)
+for(i in 1:10){
+  t2<- system.time({
+  model<-dbglm(isred~power_rating+number_of_seats+gross_vehicle_mass,tbl=cars)
+  })
+  t2<- unname(t2[3])
+  a1<- c(a1, t2)
+  aa<- aa+0.1 * unname(model$hatbeta[,1])
+  bb<- bb + 0.1 * unname(sqrt(diag(model$hatV)))
+}
+row.3<- c(aa, mean(a1))
+row.4<- bb
+
+# Replicate 2 - monet
+a1<- numeric(0)
+aa<- rep(0, 4)
+bb<- rep(0, 4)
+for(i in 1:10){
+  t2<- system.time({
+  model<-dbglm(isred~power_rating+number_of_seats+gross_vehicle_mass,tbl=cars)
+  })
+  t2<- unname(t2[3])
+  a1<- c(a1, t2)
+  aa<- aa+0.1 * unname(model$hatbeta[,1])
+  bb<- bb + 0.1 * unname(sqrt(diag(model$hatV)))
+}
+row.5<- c(aa, mean(a1))
+row.6<- bb
+```
+
+
+```{r}
+vehicles<-read_csv("Fleet30Nov2017a.csv", quote = "")
+names(vehicles)<-tolower(names(vehicles))
+vehicles$power_rating<-as.numeric(as.character(vehicles$power_rating))
+vehicles$number_of_seats<-as.numeric(as.character(vehicles$number_of_seats))
+vehicles$number_of_axles<-as.numeric(as.character(vehicles$number_of_axles))
+
+sqlite<-dbDriver("SQLite")
+con<-dbConnect(sqlite,"nzcars.db")
+RSQLite:::initExtension(con)
+dbWriteTable(con,"vehicles",vehicles, overwrite = T)
+dbDisconnect(con)
+
+sqlite<-dbDriver("SQLite")
+con<-dbConnect(sqlite,"nzcars.db")
+RSQLite:::initExtension(con)
+sqlitevehicles<-tbl(con,"vehicles")
+
+cars0 <- filter(sqlitevehicles, vehicle_type == "PASSENGER CAR/VAN") %>%
+	mutate(isred=ifelse(basic_colour=="RED",1,0)) %>% 
+	filter(number_of_seats >1 & number_of_seats < 7) %>% filter(number_of_axles==2) %>%
+	compute()
+```
+
+```{r}
+#sqlite replicate 1
+a1<- numeric(0)
+aa<- rep(0, 4)
+bb<- rep(0, 4)
+for(i in 1:10){
+  t2<- system.time({
+  model<-dbglm(isred~power_rating+number_of_seats+gross_vehicle_mass,tbl=cars0)
+  })
+  t2<- unname(t2[3])
+  a1<- c(a1, t2)
+  aa<- aa+0.1 * unname(model$hatbeta[,1])
+  bb<- bb + 0.1 * unname(sqrt(diag(model$hatV)))
+}
+row.7<- c(aa, mean(a1))
+row.8<- bb
+
+#sqlite replicate 2
+a1<- numeric(0)
+aa<- rep(0, 4)
+bb<- rep(0, 4)
+for(i in 1:10){
+  t2<- system.time({
+  model<-dbglm(isred~power_rating+number_of_seats+gross_vehicle_mass,tbl=cars0)
+  })
+  t2<- unname(t2[3])
+  a1<- c(a1, t2)
+  aa<- aa+0.1 * unname(model$hatbeta[,1])
+  bb<- bb + 0.1 * unname(sqrt(diag(model$hatV)))
+}
+row.9<- c(aa, mean(a1))
+row.10<- bb
+```
+
+```{r}
+con_duck<- dbConnect(duckdb::duckdb())
+duckdb_read_csv(con_duck, "Fleet30Nov2017a.csv", "Fleet30Nov2017a.csv", quote = "", lower.case.names=TRUE, check.names = T)
+cars<- dbReadTable(con_duck, "Fleet30Nov2017a.csv")
+cars1 <- filter(cars, vehicle_type == "PASSENGER CAR/VAN") %>% 
+  mutate(isred=ifelse(basic_colour=="RED",1,0)) %>% 
+  filter(number_of_seats >1 & number_of_seats < 7) %>% filter(number_of_axles==2) %>%
+  compute()
+```
+
+```{r}
+#duckDB replicate 1
+a1<- numeric(0)
+aa<- rep(0, 4)
+bb<- rep(0, 4)
+for(i in 1:10){
+  t2<- system.time({
+  model<-dbglm(isred~power_rating+number_of_seats+gross_vehicle_mass,tbl=cars1)
+  })
+  t2<- unname(t2[3])
+  a1<- c(a1, t2)
+  aa<- aa+0.1 * unname(model$hatbeta[,1])
+  bb<- bb + 0.1 * unname(sqrt(diag(model$hatV)))
+}
+row.11<- c(aa, mean(a1))
+row.12<- bb
+
+#duckDB replicate 2
+a1<- numeric(0)
+aa<- rep(0, 4)
+bb<- rep(0, 4)
+for(i in 1:10){
+  t2<- system.time({
+  model<-dbglm(isred~power_rating+number_of_seats+gross_vehicle_mass,tbl=cars1)
+  })
+  t2<- unname(t2[3])
+  a1<- c(a1, t2)
+  aa<- aa+0.1 * unname(model$hatbeta[,1])
+  bb<- bb + 0.1 * unname(sqrt(diag(model$hatV)))
+}
+row.13<- c(aa, mean(a1))
+row.14<- bb
+```
+
+
+```{r}
+# dq_auth
+con<- dbConnect(bigrquery::bigquery(), project = "dbglm-305201", dataset = "asd")
+bigq<- tbl(con, "dbglm")
+cars11 <- filter(bigq, vehicle_type == "PASSENGER CAR/VAN") %>% 
+  mutate(isred=ifelse(basic_colour=="RED",1,0)) %>% 
+  filter(number_of_seats >1 & number_of_seats < 7) %>% filter(number_of_axles==2) %>%
+  compute()
+```
+
+```{r}
+#Bigrquery Replicate 1
+a1<- numeric(0)
+aa<- rep(0, 4)
+bb<- rep(0, 4)
+for(i in 1:10){
+  t2<- system.time({
+  model<-dbglm(isred~POWER_RATING+NUMBER_OF_SEATS+GROSS_VEHICLE_MASS,tbl=cars11)
+  })
+  t2<- unname(t2[3])
+  a1<- c(a1, t2)
+  aa<- aa+0.1 * unname(model$hatbeta[,1])
+  bb<- bb + 0.1 * unname(sqrt(diag(model$hatV)))
+}
+row.15<- c(aa, mean(a1))
+row.16<- bb
+
+#Bigrquery Replicate 2
+a1<- numeric(0)
+aa<- rep(0, 4)
+bb<- rep(0, 4)
+for(i in 1:10){
+  t2<- system.time({
+  model<-dbglm(isred~POWER_RATING+NUMBER_OF_SEATS+GROSS_VEHICLE_MASS,tbl=cars11)
+  })
+  t2<- unname(t2[3])
+  a1<- c(a1, t2)
+  aa<- aa+0.1 * unname(model$hatbeta[,1])
+  bb<- bb + 0.1 * unname(sqrt(diag(model$hatV)))
+}
+row.17<- c(aa, mean(a1))
+row.18<- bb
+```
+
+```{r}
+output<- rbind(row.1, row.2, row.3, row.4, row.5, row.6, row.7, row.8, row.9, row.10, row.11, row.12, row.13, row.14, row.15, row.16, row.17, row.18)
+output[c(2,4,6,8,10,12,14,16,18),]<- output[c(2,4,6,8,10,12,14,16,18),]*100
+output[,2]<- round(output[,2]*1000,2)
+output[,4]<- round(output[,4]*1000,2)
+output[,1]<- round(output[,1],2)
+output[,3]<- round(output[,3],2)
+output[,5]<- round(output[,5],2)
+output[c(2,4,6,8,10,12,14,16,18),5]<- rep("",9)
+output<- cbind(rep(c("\U03B2", "SEx100"),9), output)
+output<- cbind(c("Full Data", "", "Replicate 1", "", "Replicate 2", "", "Replicate 3","", "Replicate 4","","Replicate 5", "", "Replicate 6","", "Replicate 7", "", "Replicate 8", ""), output)
+output<- as.data.frame(output)
+colnames(output)<- c("", "", "Intercept", "Power/1000", "Seats", "Mass/1000", "Processing Time (s)")
+output$Method<- c("","","MonetDB", "", "MonetDB", "", "SQLite", "", "SQLite","","duckDB","","duckDB","", "Big Query", "", "Big Query", "")
+kable(output, row.names = F)
+```
+
+
+
+
